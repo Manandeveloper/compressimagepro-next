@@ -704,6 +704,11 @@ body.not-found .page-not-found {
   color: #fff !important;
 }
 
+.blog-detail .content img {
+  margin: 2rem 0;
+  width: 100%;
+}
+
 @media (max-width: 1650px) {
   h1 {
     font-size: 1.9rem;
