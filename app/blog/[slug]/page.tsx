@@ -2,10 +2,9 @@ import { notFound } from "next/navigation";
 import { getAllBlogs } from "@/lib/blogs";
 import Link from "next/link";
 import { getNextPrevBlog } from "@/lib/getNextPrevPost";
-
 export const dynamicParams = true;
+import type { Metadata } from "next";
 
-/* ✅ STATIC PATHS */
 export async function generateStaticParams() {
     return getAllBlogs().map(blog => ({
         slug: blog.slug,
@@ -17,16 +16,43 @@ export async function generateMetadata({
     params,
 }: {
     params: Promise<{ slug: string }>;
-}) {
+}): Promise<Metadata> {
     const { slug } = await params;
 
     const blog = getAllBlogs().find(b => b.slug === slug);
 
     if (!blog) return {};
-
+    const canonicalUrl = `https://compressimagepro.com/blog/${slug}`;
     return {
-        title: `${blog.title} | Compress Image Pro`,
-        description: blog.excerpt,
+        title: blog.metaTitle ?? blog.title,
+        description: blog.metaDescription ?? blog.excerpt,
+        keywords: blog.metaKeywords,
+
+        alternates: {
+            canonical: canonicalUrl,
+        },
+
+        openGraph: {
+            title: blog.metaTitle ?? blog.title,
+            description: blog.metaDescription ?? blog.excerpt,
+            url: canonicalUrl,
+            type: "article",
+            images: [
+                {
+                    url: blog.featureImage,
+                    width: 1200,
+                    height: 630,
+                    alt: blog.title,
+                },
+            ],
+        },
+
+        twitter: {
+            card: "summary_large_image",
+            title: blog.metaTitle ?? blog.title,
+            description: blog.metaDescription ?? blog.excerpt,
+            images: [blog.featureImage],
+        },
     };
 }
 
