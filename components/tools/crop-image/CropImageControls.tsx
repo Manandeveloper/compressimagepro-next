@@ -5,7 +5,7 @@ import { FileUpload } from "@/components/shared/FileUpload";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import OGImage from "@/public/assets/og-crop-image.png"
+import Cropper from "react-easy-crop";
 import {
     Download,
     RefreshCw,
@@ -21,7 +21,6 @@ const aspectRatios = [
     { name: "3:2", value: 3 / 2 },
 ];
 
-
 export default function CropImageControls() {
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
@@ -32,7 +31,13 @@ export default function CropImageControls() {
     const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
+    const onCropComplete = (_: any, croppedPixels: any) => {
+        setCroppedAreaPixels(croppedPixels);
+    };
     const handleFilesSelected = useCallback((files: File[]) => {
         if (files.length > 0) {
             const selectedFile = files[0];
@@ -49,57 +54,94 @@ export default function CropImageControls() {
         }
     }, []);
 
+    // const handleRatioChange = (ratio: number | null) => {
+    //     setSelectedRatio(ratio);
+    //     if (ratio) {
+    //         const newHeight = 100 / ratio;
+    //         setCropArea((prev) => ({
+    //             ...prev,
+    //             width: 100,
+    //             height: Math.min(100, newHeight),
+    //         }));
+    //     }
+    // };
+    // const cropImage = useCallback(async () => {
+    //     if (!file || !preview) return;
+
+    //     setIsProcessing(true);
+    //     try {
+    //         const canvas = document.createElement("canvas");
+    //         const ctx = canvas.getContext("2d");
+    //         const img = new Image();
+
+    //         img.onload = () => {
+    //             const cropX = (cropArea.x / 100) * img.width;
+    //             const cropY = (cropArea.y / 100) * img.height;
+    //             const cropWidth = (cropArea.width / 100) * img.width;
+    //             const cropHeight = (cropArea.height / 100) * img.height;
+
+    //             canvas.width = cropWidth;
+    //             canvas.height = cropHeight;
+    //             ctx?.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+    //             canvas.toBlob(
+    //                 (blob) => {
+    //                     if (blob) {
+    //                         const url = URL.createObjectURL(blob);
+    //                         setCroppedUrl(url);
+    //                         setIsProcessing(false);
+    //                         toast.success("Image cropped successfully!");
+    //                     }
+    //                 },
+    //                 file.type || "image/png",
+    //                 0.95
+    //             );
+    //         };
+
+    //         img.src = preview;
+    //     } catch (error) {
+    //         setIsProcessing(false);
+    //         toast.error("Failed to crop image");
+    //     }
+    // }, [file, preview, cropArea]);
     const handleRatioChange = (ratio: number | null) => {
-        setSelectedRatio(ratio);
-        if (ratio) {
-            const newHeight = 100 / ratio;
-            setCropArea((prev) => ({
-                ...prev,
-                width: 100,
-                height: Math.min(100, newHeight),
-            }));
-        }
+        setSelectedRatio(ratio); // null = free
     };
 
-    const cropImage = useCallback(async () => {
-        if (!file || !preview) return;
+
+    const cropImage = async () => {
+        if (!preview || !croppedAreaPixels) return;
 
         setIsProcessing(true);
-        try {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            const img = new Image();
 
-            img.onload = () => {
-                const cropX = (cropArea.x / 100) * img.width;
-                const cropY = (cropArea.y / 100) * img.height;
-                const cropWidth = (cropArea.width / 100) * img.width;
-                const cropHeight = (cropArea.height / 100) * img.height;
+        const image = new Image();
+        image.src = preview;
+        await new Promise((res) => (image.onload = res));
 
-                canvas.width = cropWidth;
-                canvas.height = cropHeight;
-                ctx?.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        const canvas = document.createElement("canvas");
+        canvas.width = croppedAreaPixels.width;
+        canvas.height = croppedAreaPixels.height;
 
-                canvas.toBlob(
-                    (blob) => {
-                        if (blob) {
-                            const url = URL.createObjectURL(blob);
-                            setCroppedUrl(url);
-                            setIsProcessing(false);
-                            toast.success("Image cropped successfully!");
-                        }
-                    },
-                    file.type || "image/png",
-                    0.95
-                );
-            };
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(
+            image,
+            croppedAreaPixels.x,
+            croppedAreaPixels.y,
+            croppedAreaPixels.width,
+            croppedAreaPixels.height,
+            0,
+            0,
+            croppedAreaPixels.width,
+            croppedAreaPixels.height
+        );
 
-            img.src = preview;
-        } catch (error) {
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            setCroppedUrl(URL.createObjectURL(blob));
             setIsProcessing(false);
-            toast.error("Failed to crop image");
-        }
-    }, [file, preview, cropArea]);
+            toast.success("Image cropped successfully!");
+        }, file?.type || "image/png");
+    };
 
     const downloadImage = useCallback(() => {
         if (!croppedUrl || !file) return;
@@ -200,7 +242,7 @@ export default function CropImageControls() {
                             <h4 className="mb-3 text-sm font-medium">
                                 {croppedUrl ? "Cropped Result" : "Preview"}
                             </h4>
-                            <div
+                            {/* <div
                                 ref={containerRef}
                                 className="relative overflow-hidden rounded-xl border border-border bg-muted/30"
                             >
@@ -226,8 +268,18 @@ export default function CropImageControls() {
                                         Cropped
                                     </div>
                                 )}
+                            </div> */}
+                            <div className="relative h-[400px] w-full rounded-xl border border-border bg-muted/30">
+                                <Cropper
+                                    image={preview}
+                                    crop={crop}
+                                    zoom={zoom}
+                                    aspect={selectedRatio || undefined}
+                                    onCropChange={setCrop}
+                                    onZoomChange={setZoom}
+                                    onCropComplete={onCropComplete}
+                                />
                             </div>
-
                             {croppedUrl && (
                                 <Button
                                     variant="gradient"

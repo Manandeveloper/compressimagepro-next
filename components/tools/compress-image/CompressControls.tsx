@@ -35,49 +35,69 @@ export default function CompressControls() {
         if (!file) return;
 
         setIsProcessing(true);
-        try {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            const img = new window.Image();
 
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx?.drawImage(img, 0, 0);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
 
-                canvas.toBlob(
-                    (blob) => {
-                        if (blob) {
-                            const url = URL.createObjectURL(blob);
-                            setCompressedUrl(url);
-                            setCompressedSize(blob.size);
-                            setIsProcessing(false);
-                            toast.success("Image compressed successfully!");
-                        }
-                    },
-                    "image/jpeg",
-                    quality[0] / 100
-                );
-            };
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx?.drawImage(img, 0, 0);
 
-            img.src = URL.createObjectURL(file);
-        } catch (error) {
-            setIsProcessing(false);
-            toast.error("Failed to compress image");
-        }
+            const outputType = getOutputType(file);
+
+            // Avoid false compression at 100%
+            const effectiveQuality = outputType === "image/png"
+                ? undefined
+                : Math.min(quality[0], 95) / 100;
+
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) return;
+
+                    // If compressed is bigger, keep original
+                    if (blob.size >= file.size) {
+                        toast.warning("Compressed image is larger. Keeping original file.");
+                        setCompressedUrl(URL.createObjectURL(file));
+                        setCompressedSize(file.size);
+                    } else {
+                        setCompressedUrl(URL.createObjectURL(blob));
+                        setCompressedSize(blob.size);
+                        toast.success("Image compressed successfully!");
+                    }
+
+                    setIsProcessing(false);
+                },
+                outputType,
+                effectiveQuality
+            );
+        };
+
+        img.src = URL.createObjectURL(file);
     }, [file, quality]);
+
 
     const downloadImage = useCallback(() => {
         if (!compressedUrl || !file) return;
 
+        // Get original extension
+        const originalExtension = file.name.split(".").pop()?.toLowerCase();
+
+        // Fallback safety
+        const extension = originalExtension || "jpg";
+
         const link = document.createElement("a");
         link.href = compressedUrl;
-        link.download = `compressed_${file.name.replace(/\.[^/.]+$/, "")}.jpg`;
+        link.download = `compressed_${file.name.replace(/\.[^/.]+$/, "")}.${extension}`;
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
         toast.success("Download started!");
     }, [compressedUrl, file]);
+
 
     const reset = () => {
         setFile(null);
@@ -91,6 +111,11 @@ export default function CompressControls() {
         if (bytes < 1024) return `${bytes} B`;
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
         return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    };
+    const getOutputType = (file: File) => {
+        if (file.type === "image/png") return "image/png";
+        if (file.type === "image/webp") return "image/webp";
+        return "image/jpeg"; // default
     };
 
     const reduction = file && compressedSize
